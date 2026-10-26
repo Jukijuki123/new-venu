@@ -17,8 +17,11 @@ use App\Http\Controllers\Api\UmkmDiscoveryController;
 
 Route::prefix('v1')->group(function () {
     // Public — session/CSRF untuk SPA ditangani EnsureFrontendRequestsAreStateful
-    Route::post('auth/register', [AuthController::class, 'register']);
-    Route::post('auth/login', [AuthController::class, 'login']);
+    // Rate limiting untuk mencegah brute-force pada autentikasi
+    Route::middleware('throttle:5,1')->group(function () {
+        Route::post('auth/register', [AuthController::class, 'register']);
+        Route::post('auth/login', [AuthController::class, 'login']);
+    });
 
     // Public discovery — tidak butuh auth
     Route::get('events', [EventDiscoveryController::class, 'index']);
