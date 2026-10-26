@@ -1,0 +1,77 @@
+services:
+  database:
+    image: mysql:8.0
+    container_name: venu_database
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-venu_db}
+      MYSQL_USER: ${DB_USERNAME:-venu_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-venu_secret}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-venu_root_secret}
+    volumes:
+      - venu_db_data:/var/lib/mysql
+    networks:
+      - venu_network
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u root -p$$MYSQL_ROOT_PASSWORD || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: venu_backend
+    restart: unless-stopped
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      APP_NAME: "VENU"
+      APP_ENV: ${APP_ENV:-production}
+      APP_KEY: ${APP_KEY:-base64:7Kq8hK+O1QW/jY8QvT1mJ0j+bV6rD9q5yH8s4L1p3/g=}
+      APP_DEBUG: ${APP_DEBUG:-false}
+      APP_URL: ${APP_URL:-http://localhost}
+      DB_CONNECTION: mysql
+      DB_HOST: database
+      DB_PORT: 3306
+      DB_DATABASE: ${DB_DATABASE:-venu_db}
+      DB_USERNAME: ${DB_USERNAME:-venu_user}
+      DB_PASSWORD: ${DB_PASSWORD:-venu_secret}
+      SESSION_DRIVER: database
+      QUEUE_CONNECTION: database
+      CACHE_STORE: database
+      FILESYSTEM_DISK: public
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    volumes:
+      - venu_storage:/var/www/storage/app/public
+    networks:
+      - venu_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    container_name: venu_frontend
+    restart: unless-stopped
+    ports:
+      - "${PORT:-80}:80"
+    depends_on:
+      - backend
+    networks:
+      - venu_network
+
+volumes:
+  venu_db_data:
+    driver: local
+  venu_storage:
+    driver: local
+
+networks:
+  venu_network:
+    driver: bridge
